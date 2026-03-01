@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse
+from fastapi.responses import JSONResponse
 
 from src.core import (
     FifoEngine,
@@ -17,7 +18,32 @@ from src.core import (
 from src.models import PortfolioFifoReport
 from src.models import NormalizedTransaction
 
-app = FastAPI(title="FIFO Tracker")
+tags_metadata = [
+    {
+        "name": "report",
+        "description": "FIFO gain/loss report generation and filtering.",
+    },
+    {
+        "name": "simulations",
+        "description": "Manage what-if simulations with hypothetical transactions.",
+    },
+    {
+        "name": "assets",
+        "description": "Query available portfolio assets.",
+    },
+]
+
+app = FastAPI(
+    title="FIFO Tracker",
+    description=(
+        "REST API for computing FIFO-based capital gains/losses across brokers. "
+        "Supports fiscal-year filtering and what-if simulations."
+    ),
+    version="1.0.0",
+    openapi_tags=tags_metadata,
+    docs_url="/docs",
+    redoc_url="/redoc",
+)
 
 _report_cache: dict[str, Any] = {}
 
@@ -122,7 +148,7 @@ def init_app(data_dir: Path, brokers: list[str]) -> None:
     _report_cache["fiscal_years"] = years
 
 
-@app.get("/api/report")
+@app.get("/api/report", tags=["report"], summary="Get FIFO report", response_model=None)
 def api_report(
     fiscal_year: int | None = Query(None),
     simulation_id: str | None = Query(None),
@@ -154,18 +180,24 @@ def api_report(
     return data
 
 
-@app.get("/api/simulations")
+@app.get("/api/simulations", tags=["simulations"], summary="List simulations")
 def api_list_simulations() -> dict[str, Any]:
     return {"simulations": _simulation_service().list_simulations()}
 
 
-@app.get("/api/assets")
+@app.get("/api/assets", tags=["assets"], summary="List available assets")
 def api_assets() -> dict[str, Any]:
     transactions: list[NormalizedTransaction] = _report_cache.get("transactions", [])
     return {"assets": _simulation_service().available_assets(transactions)}
 
 
-@app.post("/api/simulations")
+@app.get("/api/openapi.json", include_in_schema=False)
+def api_openapi() -> JSONResponse:
+    """Return the application's OpenAPI schema as JSON (mirrors /openapi.json)."""
+    return JSONResponse(content=app.openapi())
+
+
+@app.post("/api/simulations", tags=["simulations"], summary="Create a simulation", status_code=201)
 def api_create_simulation(payload: dict[str, Any]) -> dict[str, Any]:
     try:
         simulation = _simulation_service().create_simulation(str(payload.get("name", "")))
@@ -175,7 +207,7 @@ def api_create_simulation(payload: dict[str, Any]) -> dict[str, Any]:
     return {"simulation": simulation}
 
 
-@app.get("/api/simulations/{simulation_id}")
+@app.get("/api/simulations/{simulation_id}", tags=["simulations"], summary="Get a simulation")
 def api_get_simulation(simulation_id: str) -> dict[str, Any]:
     try:
         simulation = _simulation_service().simulation_details(simulation_id)
@@ -185,7 +217,7 @@ def api_get_simulation(simulation_id: str) -> dict[str, Any]:
     return {"simulation": simulation}
 
 
-@app.delete("/api/simulations/{simulation_id}")
+@app.delete("/api/simulations/{simulation_id}", tags=["simulations"], summary="Delete a simulation")
 def api_delete_simulation(simulation_id: str) -> dict[str, Any]:
     try:
         _simulation_service().delete_simulation(simulation_id)
@@ -195,7 +227,7 @@ def api_delete_simulation(simulation_id: str) -> dict[str, Any]:
     return {"ok": True}
 
 
-@app.post("/api/simulations/{simulation_id}/transactions")
+@app.post("/api/simulations/{simulation_id}/transactions", tags=["simulations"], summary="Add a transaction to a simulation", status_code=201)
 def api_add_simulation_transaction(simulation_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     engine: FifoEngine = _report_cache["engine"]
     base_transactions: list[NormalizedTransaction] = _report_cache.get("transactions", [])
@@ -214,7 +246,7 @@ def api_add_simulation_transaction(simulation_id: str, payload: dict[str, Any]) 
     return {"simulation": simulation}
 
 
-@app.delete("/api/simulations/{simulation_id}/transactions/{transaction_index}")
+@app.delete("/api/simulations/{simulation_id}/transactions/{transaction_index}", tags=["simulations"], summary="Delete a transaction from a simulation")
 def api_delete_simulation_transaction(simulation_id: str, transaction_index: int) -> dict[str, Any]:
     try:
         simulation = _simulation_service().delete_transaction(simulation_id, transaction_index)
