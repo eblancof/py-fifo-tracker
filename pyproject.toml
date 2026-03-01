@@ -1,0 +1,14 @@
+[project]
+name = "py-fifo-tracker"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["typer>=0.16.0", "fastapi>=0.115.0", "uvicorn[standard]>=0.34.0"]
+
+[project.scripts]
+py-fifo-tracker = "src.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]

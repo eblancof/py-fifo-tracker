@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FIFO Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    .fade-in {
+      animation: fadeIn .3s ease-in;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .gain {
+      color: #16a34a;
+    }
+
+    .loss {
+      color: #dc2626;
+    }
+
+    details[open] summary .chevron {
+      transform: rotate(90deg);
+    }
+
+    .chevron {
+      transition: transform .2s ease;
+      display: inline-block;
+    }
+  </style>
+</head>
+
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+
+  <!-- Header -->
+  <header class="border-b border-gray-800 bg-gray-900/80 backdrop-blur sticky top-0 z-10">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <h1 class="text-xl font-semibold tracking-tight">FIFO Tracker</h1>
+      <div class="flex items-center gap-6">
+        <div class="flex items-center gap-3">
+          <label for="fy-select" class="text-sm text-gray-400">Fiscal Year</label>
+          <select id="fy-select"
+            class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="">All</option>
+          </select>
+        </div>
+        <div class="flex bg-gray-800 p-1 rounded-lg border border-gray-700">
+          <button id="view-list" class="px-3 py-1 text-xs rounded-md transition-colors">List</button>
+          <button id="view-grid" class="px-3 py-1 text-xs rounded-md transition-colors">Grid</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-6 py-8 space-y-8">
+    <!-- Future simulations -->
+    <section class="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
+      <div class="flex items-center justify-between gap-4 flex-wrap">
+        <h2 class="text-lg font-medium">Future Simulations</h2>
+        <form id="simulation-create-form" class="flex items-center gap-2">
+          <input id="simulation-name" type="text" placeholder="Simulation name" required
+            class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <button type="submit"
+            class="px-3 py-2 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-500 transition">Create</button>
+        </form>
+      </div>
+
+      <div class="flex items-center gap-2 flex-wrap">
+        <select id="simulation-select"
+          class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm min-w-[260px] focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="">No simulation selected</option>
+        </select>
+        <button id="simulation-delete" type="button"
+          class="px-3 py-2 text-sm rounded-lg border border-red-700 text-red-300 hover:bg-red-900/30 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled>
+          Delete simulation
+        </button>
+      </div>
+
+      <p id="simulation-message" class="text-sm text-red-400 hidden"></p>
+
+      <div id="simulation-editor" class="hidden space-y-4">
+        <form id="simulation-tx-form" class="grid grid-cols-1 md:grid-cols-4 gap-2">
+          <select id="tx-asset-select" required class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm">
+            <option value="">Select existing asset</option>
+          </select>
+          <input id="tx-name" type="text" placeholder="Asset name" readonly
+            class="bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-300" />
+          <input id="tx-isin" type="text" placeholder="ISIN" readonly
+            class="bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-300" />
+          <select id="tx-type" required class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm">
+            <option value="buy">Buy</option>
+            <option value="sell">Sell</option>
+          </select>
+          <input id="tx-datetime" type="datetime-local" required
+            class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm" />
+          <input id="tx-quantity" type="number" min="0.000001" step="0.000001" placeholder="Quantity" required
+            class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm" />
+          <input id="tx-price" type="number" min="0.000001" step="0.000001" placeholder="Price per share" required
+            class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm" />
+          <input id="tx-commissions" type="number" step="0.000001" placeholder="Commissions (optional)"
+            class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm" />
+          <button type="submit" class="px-3 py-2 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-500 transition">Add transaction</button>
+        </form>
+
+        <div class="overflow-x-auto rounded-xl border border-gray-800">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-900 text-gray-400 text-left">
+              <tr>
+                <th class="px-3 py-2">Date</th>
+                <th class="px-3 py-2">Asset</th>
+                <th class="px-3 py-2">ISIN</th>
+                <th class="px-3 py-2">Type</th>
+                <th class="px-3 py-2 text-right">Qty</th>
+                <th class="px-3 py-2 text-right">Price</th>
+                <th class="px-3 py-2 text-right">Commissions</th>
+                <th class="px-3 py-2"></th>
+              </tr>
+            </thead>
+            <tbody id="simulation-tx-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Summary cards -->
+    <section id="summary" class="grid grid-cols-2 md:grid-cols-4 gap-4"></section>
+
+    <!-- Assets table -->
+    <section>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-medium">Portfolio Assets</h2>
+        <button id="toggle-assets" type="button"
+          class="px-3 py-1 text-xs rounded-md border border-gray-700 text-gray-300 hover:bg-gray-800 transition">
+          Collapse
+        </button>
+      </div>
+      <div id="assets-section-content">
+        <div id="assets" class="space-y-3"></div>
+        <div id="assets-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 hidden"></div>
+      </div>
+    </section>
+
+    <!-- Realized sales -->
+    <section>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-medium">Realized Sales</h2>
+        <button id="toggle-sales" type="button"
+          class="px-3 py-1 text-xs rounded-md border border-gray-700 text-gray-300 hover:bg-gray-800 transition">
+          Collapse
+        </button>
+      </div>
+      <div id="sales-section-content" class="overflow-x-auto rounded-xl border border-gray-800">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-900 text-gray-400 text-left">
+            <tr>
+              <th class="px-4 py-3">Date</th>
+              <th class="px-4 py-3">Asset</th>
+              <th class="px-4 py-3">ISIN</th>
+              <th class="px-4 py-3 text-right">Qty</th>
+              <th class="px-4 py-3 text-right">Cost Basis</th>
+              <th class="px-4 py-3 text-right">Proceeds</th>
+              <th class="px-4 py-3 text-right">Gain / Loss</th>
+            </tr>
+          </thead>
+          <tbody id="sales-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer class="text-center text-xs text-gray-600 py-6">FIFO Tracker &mdash; generated data, not financial advice.
+  </footer>
+
+  <script>
+    const API = '/api/report';
+    const SIM_API = '/api/simulations';
+    const ASSETS_API = '/api/assets';
+    const fySelect = document.getElementById('fy-select');
+    const summaryEl = document.getElementById('summary');
+    const assetsEl = document.getElementById('assets');
+    const assetsGridEl = document.getElementById('assets-grid');
+    const salesBody = document.getElementById('sales-body');
+    const viewListBtn = document.getElementById('view-list');
+    const viewGridBtn = document.getElementById('view-grid');
+    const simulationCreateForm = document.getElementById('simulation-create-form');
+    const simulationNameInput = document.getElementById('simulation-name');
+    const simulationSelect = document.getElementById('simulation-select');
+    const simulationDeleteBtn = document.getElementById('simulation-delete');
+    const simulationEditor = document.getElementById('simulation-editor');
+    const simulationTxForm = document.getElementById('simulation-tx-form');
+    const simulationTxBody = document.getElementById('simulation-tx-body');
+    const simulationMessage = document.getElementById('simulation-message');
+    const txDatetimeInput = document.getElementById('tx-datetime');
+    const txAssetSelect = document.getElementById('tx-asset-select');
+    const txNameInput = document.getElementById('tx-name');
+    const txIsinInput = document.getElementById('tx-isin');
+    const toggleAssetsBtn = document.getElementById('toggle-assets');
+    const toggleSalesBtn = document.getElementById('toggle-sales');
+    const assetsSectionContent = document.getElementById('assets-section-content');
+    const salesSectionContent = document.getElementById('sales-section-content');
+
+    let currentView = localStorage.getItem('fifo-view-mode') || 'list';
+    let activeSimulationId = null;
+    let availableAssets = [];
+
+    const fmt = (v) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmtQty = (v) => v % 1 === 0 ? v.toString() : v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 });
+    const gainClass = (v) => v >= 0 ? 'gain' : 'loss';
+    const sign = (v) => v >= 0 ? '+' : '';
+
+    function setSimulationMessage(message, isError = true) {
+      if (!message) {
+        simulationMessage.classList.add('hidden');
+        simulationMessage.textContent = '';
+        return;
+      }
+      simulationMessage.textContent = message;
+      simulationMessage.classList.remove('hidden');
+      simulationMessage.classList.toggle('text-red-400', isError);
+      simulationMessage.classList.toggle('text-emerald-400', !isError);
+    }
+
+    function setDefaultTxDatetime() {
+      const now = new Date();
+      now.setSeconds(0, 0);
+      const localIso = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      txDatetimeInput.value = localIso;
+    }
+
+    function renderAssetOptions() {
+      txAssetSelect.innerHTML = '<option value="">Select existing asset</option>';
+      availableAssets.forEach((asset, index) => {
+        const opt = document.createElement('option');
+        opt.value = String(index);
+        opt.textContent = `${asset.name} (${asset.isin})`;
+        txAssetSelect.appendChild(opt);
+      });
+    }
+
+    function syncSelectedAssetFields() {
+      const idx = txAssetSelect.value;
+      if (idx === '') {
+        txNameInput.value = '';
+        txIsinInput.value = '';
+        return;
+      }
+
+      const selectedAsset = availableAssets[Number(idx)];
+      txNameInput.value = selectedAsset?.name || '';
+      txIsinInput.value = selectedAsset?.isin || '';
+    }
+
+    async function loadAssetOptions() {
+      const res = await fetch(ASSETS_API);
+      if (!res.ok) {
+        throw new Error('Could not load portfolio assets');
+      }
+      const data = await res.json();
+      availableAssets = data.assets || [];
+      renderAssetOptions();
+      syncSelectedAssetFields();
+    }
+
+    function updateViewButtons() {
+      if (currentView === 'list') {
+        viewListBtn.classList.add('bg-indigo-600', 'text-white');
+        viewListBtn.classList.remove('text-gray-400');
+        viewGridBtn.classList.remove('bg-indigo-600', 'text-white');
+        viewGridBtn.classList.add('text-gray-400');
+        assetsEl.classList.remove('hidden');
+        assetsGridEl.classList.add('hidden');
+      } else {
+        viewGridBtn.classList.add('bg-indigo-600', 'text-white');
+        viewGridBtn.classList.remove('text-gray-400');
+        viewListBtn.classList.remove('bg-indigo-600', 'text-white');
+        viewListBtn.classList.add('text-gray-400');
+        assetsGridEl.classList.remove('hidden');
+        assetsEl.classList.add('hidden');
+      }
+    }
+
+    function toggleSection(contentEl, buttonEl) {
+      const isHidden = contentEl.classList.toggle('hidden');
+      buttonEl.textContent = isHidden ? 'Expand' : 'Collapse';
+    }
+
+    viewListBtn.addEventListener('click', () => {
+      currentView = 'list';
+      localStorage.setItem('fifo-view-mode', 'list');
+      updateViewButtons();
+    });
+
+    viewGridBtn.addEventListener('click', () => {
+      currentView = 'grid';
+      localStorage.setItem('fifo-view-mode', 'grid');
+      updateViewButtons();
+    });
+
+    async function loadReport(fiscalYear, simulationId = activeSimulationId) {
+      const url = new URL(API, window.location.origin);
+      if (fiscalYear) {
+        url.searchParams.set('fiscal_year', fiscalYear);
+      }
+      if (simulationId) {
+        url.searchParams.set('simulation_id', simulationId);
+      }
+
+      const res = await fetch(url);
+      if (!res.ok) {
+        const errorPayload = await res.json().catch(() => ({}));
+        throw new Error(errorPayload.detail || 'Could not load report');
+      }
+      const data = await res.json();
+      render(data);
+    }
+
+    async function loadSimulations() {
+      const res = await fetch(SIM_API);
+      if (!res.ok) {
+        throw new Error('Could not load simulations');
+      }
+      const data = await res.json();
+      const simulations = data.simulations || [];
+
+      simulationSelect.innerHTML = '<option value="">No simulation selected</option>';
+      simulations.forEach(sim => {
+        const opt = document.createElement('option');
+        opt.value = sim.id;
+        opt.textContent = `${sim.name} (${sim.date || 'no-date'})`;
+        simulationSelect.appendChild(opt);
+      });
+
+      if (activeSimulationId && !simulations.some(s => s.id === activeSimulationId)) {
+        activeSimulationId = null;
+      }
+
+      simulationSelect.value = activeSimulationId || '';
+      simulationDeleteBtn.disabled = !activeSimulationId;
+
+      if (activeSimulationId) {
+        await loadSimulationDetail(activeSimulationId);
+      } else {
+        simulationEditor.classList.add('hidden');
+        simulationTxBody.innerHTML = '<tr><td colspan="8" class="px-3 py-4 text-center text-gray-500">Select or create a simulation.</td></tr>';
+      }
+    }
+
+    function renderSimulationDetail(simulation) {
+      const transactions = simulation.transactions || [];
+      simulationEditor.classList.remove('hidden');
+
+      simulationTxBody.innerHTML = transactions.length
+        ? transactions.map(tx => `
+      <tr class="border-t border-gray-800/50">
+        <td class="px-3 py-2">${tx.timestamp.slice(0, 16).replace('T', ' ')}</td>
+        <td class="px-3 py-2">${tx.name}</td>
+        <td class="px-3 py-2 text-gray-400">${tx.isin}</td>
+        <td class="px-3 py-2 uppercase text-xs">${tx.transaction_type}</td>
+        <td class="px-3 py-2 text-right">${tx.quantity}</td>
+        <td class="px-3 py-2 text-right">${tx.price_per_share}</td>
+        <td class="px-3 py-2 text-right">${tx.commissions || '0'}</td>
+        <td class="px-3 py-2 text-right">
+          <button type="button" data-index="${tx.index}" class="simulation-delete-tx text-xs text-red-300 hover:text-red-200">Remove</button>
+        </td>
+      </tr>`).join('')
+        : '<tr><td colspan="8" class="px-3 py-4 text-center text-gray-500">No simulation transactions yet.</td></tr>';
+    }
+
+    async function loadSimulationDetail(simulationId) {
+      const res = await fetch(`${SIM_API}/${encodeURIComponent(simulationId)}`);
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.detail || 'Could not load simulation details');
+      }
+      const data = await res.json();
+      renderSimulationDetail(data.simulation);
+    }
+
+    async function refreshSimulationAndReport() {
+      await loadSimulations();
+      await loadReport(fySelect.value || null, activeSimulationId);
+    }
+
+    function render(data) {
+      // Fiscal year dropdown
+      if (fySelect.options.length <= 1 && data.fiscal_years?.length) {
+        data.fiscal_years.forEach(y => {
+          const opt = document.createElement('option');
+          opt.value = y; opt.textContent = y;
+          fySelect.appendChild(opt);
+        });
+      }
+
+      // Summary
+      summaryEl.innerHTML = [
+        card('Realized Sales', data.realized_sales_count, ''),
+        card('Total Proceeds', fmt(data.total_proceeds), 'EUR'),
+        card('Total Cost Basis', fmt(data.total_cost_basis), 'EUR'),
+        card('Realized Gain', `${sign(data.total_realized_gain)}${fmt(data.total_realized_gain)}`, 'EUR', data.total_realized_gain),
+      ].join('');
+
+      // Assets
+      const activeAssets = data.assets.filter(a => a.open_quantity_total > 0 || a.realized_sales.length > 0);
+      assetsEl.innerHTML = activeAssets.map(assetCard).join('');
+      assetsGridEl.innerHTML = activeAssets.map(assetGridCard).join('');
+
+      updateViewButtons();
+
+      // Realized sales table
+      const allSales = [];
+      data.assets.forEach(a => {
+        a.realized_sales.forEach(s => {
+          allSales.push({ ...s, isin: a.isin, name: a.name });
+        });
+      });
+      allSales.sort((a, b) => a.sell_timestamp.localeCompare(b.sell_timestamp));
+
+      salesBody.innerHTML = allSales.length
+        ? allSales.map(saleRow).join('')
+        : '<tr><td colspan="7" class="px-4 py-6 text-center text-gray-500">No realized sales for this period.</td></tr>';
+    }
+
+    function card(label, value, unit, gainValue) {
+      const colorClass = gainValue !== undefined ? gainClass(gainValue) : '';
+      return `
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 fade-in">
+      <p class="text-xs text-gray-400 uppercase tracking-wide mb-1">${label}</p>
+      <p class="text-2xl font-semibold ${colorClass}">${value} <span class="text-sm text-gray-500">${unit}</span></p>
+    </div>`;
+    }
+
+    function assetGridCard(a) {
+      return `
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 fade-in flex flex-col justify-between hover:border-gray-700 transition">
+      <div>
+        <div class="flex justify-between items-start mb-2">
+          <h3 class="font-medium text-gray-100 truncate pr-2" title="${a.name}">${a.name}</h3>
+          <span class="text-[10px] bg-gray-800 text-gray-400 px-2 py-0.5 rounded font-mono">${a.isin}</span>
+        </div>
+        <div class="grid grid-cols-2 gap-4 mt-4">
+          <div>
+            <p class="text-[10px] text-gray-500 uppercase tracking-wider">Quantity</p>
+            <p class="text-sm font-medium text-gray-200">${fmtQty(a.open_quantity_total)}</p>
+          </div>
+          <div>
+            <p class="text-[10px] text-gray-500 uppercase tracking-wider">Cost Basis</p>
+            <p class="text-sm font-medium text-gray-200">${fmt(a.open_cost_total)} <span class="text-[10px]">EUR</span></p>
+          </div>
+        </div>
+      </div>
+      <div class="mt-6 pt-4 border-t border-gray-800 flex justify-between items-center">
+        <p class="text-[10px] text-gray-500 uppercase tracking-wider">Realized Gain</p>
+        <p class="text-lg font-semibold ${gainClass(a.realized_gain_total)}">${sign(a.realized_gain_total)}${fmt(a.realized_gain_total)} <span class="text-xs italic">EUR</span></p>
+      </div>
+    </div>`;
+    }
+
+    function assetCard(a) {
+      const hasOpenLots = a.open_lots?.length > 0;
+      const hasSales = a.realized_sales?.length > 0;
+
+      let openLotsHtml = '';
+      if (hasOpenLots) {
+        const rows = a.open_lots.map(l => `
+      <tr class="border-t border-gray-800/50">
+        <td class="px-3 py-2 text-gray-400">${l.timestamp.slice(0, 10)}</td>
+        <td class="px-3 py-2 text-right">${fmtQty(l.quantity_remaining)}</td>
+        <td class="px-3 py-2 text-right">${fmt(l.unit_cost)}</td>
+        <td class="px-3 py-2 text-gray-400">${l.broker || 'Unknown'}</td>
+      </tr>`).join('');
+        openLotsHtml = `
+      <div class="mt-3">
+        <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Open Lots</p>
+        <table class="w-full text-xs">
+          <thead class="text-gray-500"><tr>
+            <th class="px-3 py-1 text-left">Bought</th>
+            <th class="px-3 py-1 text-right">Qty</th>
+            <th class="px-3 py-1 text-right">Unit Cost</th>
+            <th class="px-3 py-1 text-left">Broker</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+      }
+
+      let salesHtml = '';
+      if (hasSales) {
+        const rows = a.realized_sales.map(s => {
+          const matchRows = s.matches.map(m => `
+        <tr class="text-gray-500 border-t border-gray-800/30">
+          <td class="pl-8 pr-3 py-1">${m.buy_timestamp.slice(0, 10)} → ${m.sell_timestamp.slice(0, 10)}</td>
+          <td class="px-3 py-1 text-right">${fmtQty(m.quantity)}</td>
+          <td class="px-3 py-1 text-right">${fmt(m.cost_basis)}</td>
+          <td class="px-3 py-1 text-right">${fmt(m.proceeds)}</td>
+          <td class="px-3 py-1 text-right ${gainClass(m.realized_gain)}">${sign(m.realized_gain)}${fmt(m.realized_gain)}</td>
+        </tr>`).join('');
+
+          return `
+        <tr class="border-t border-gray-800/50">
+          <td class="px-3 py-2">${s.sell_timestamp.slice(0, 10)}</td>
+          <td class="px-3 py-2 text-right">${fmtQty(s.quantity)}</td>
+          <td class="px-3 py-2 text-right">${fmt(s.cost_basis)}</td>
+          <td class="px-3 py-2 text-right">${fmt(s.proceeds)}</td>
+          <td class="px-3 py-2 text-right ${gainClass(s.realized_gain)}">${sign(s.realized_gain)}${fmt(s.realized_gain)}</td>
+        </tr>
+        ${matchRows}`;
+        }).join('');
+
+        salesHtml = `
+      <div class="mt-3">
+        <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Realized Sales</p>
+        <table class="w-full text-xs">
+          <thead class="text-gray-500"><tr>
+            <th class="px-3 py-1 text-left">Date</th>
+            <th class="px-3 py-1 text-right">Qty</th>
+            <th class="px-3 py-1 text-right">Cost</th>
+            <th class="px-3 py-1 text-right">Proceeds</th>
+            <th class="px-3 py-1 text-right">Gain</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+      }
+
+      return `
+    <details class="bg-gray-900 border border-gray-800 rounded-xl fade-in group">
+      <summary class="px-5 py-4 cursor-pointer flex items-center justify-between hover:bg-gray-800/50 rounded-xl transition">
+        <div class="flex items-center gap-3">
+          <span class="chevron text-gray-500">›</span>
+          <div>
+            <span class="font-medium">${a.name}</span>
+            <span class="text-xs text-gray-500 ml-2">${a.isin}</span>
+          </div>
+        </div>
+        <div class="flex gap-6 text-sm">
+          <span class="text-gray-400">Qty <span class="text-gray-200">${fmtQty(a.open_quantity_total)}</span></span>
+          <span class="text-gray-400">Cost <span class="text-gray-200">${fmt(a.open_cost_total)}</span></span>
+          <span class="${gainClass(a.realized_gain_total)}">${sign(a.realized_gain_total)}${fmt(a.realized_gain_total)} EUR</span>
+        </div>
+      </summary>
+      <div class="px-5 pb-4">
+        ${openLotsHtml}
+        ${salesHtml}
+      </div>
+    </details>`;
+    }
+
+    function saleRow(s) {
+      return `
+    <tr class="border-t border-gray-800/50 hover:bg-gray-900/50 transition">
+      <td class="px-4 py-3">${s.sell_timestamp.slice(0, 10)}</td>
+      <td class="px-4 py-3 font-medium">${s.name}</td>
+      <td class="px-4 py-3 text-gray-400">${s.isin}</td>
+      <td class="px-4 py-3 text-right">${fmtQty(s.quantity)}</td>
+      <td class="px-4 py-3 text-right">${fmt(s.cost_basis)}</td>
+      <td class="px-4 py-3 text-right">${fmt(s.proceeds)}</td>
+      <td class="px-4 py-3 text-right font-medium ${gainClass(s.realized_gain)}">${sign(s.realized_gain)}${fmt(s.realized_gain)}</td>
+    </tr>`;
+    }
+
+    fySelect.addEventListener('change', async () => {
+      try {
+        await loadReport(fySelect.value || null, activeSimulationId);
+      } catch (error) {
+        setSimulationMessage(error.message || 'Could not load report');
+      }
+    });
+
+    simulationCreateForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      setSimulationMessage('');
+
+      try {
+        const res = await fetch(SIM_API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: simulationNameInput.value.trim() }),
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(payload.detail || 'Could not create simulation');
+        }
+
+        activeSimulationId = payload.simulation.id;
+        simulationNameInput.value = '';
+        setSimulationMessage('Simulation created', false);
+        await refreshSimulationAndReport();
+      } catch (error) {
+        setSimulationMessage(error.message || 'Could not create simulation');
+      }
+    });
+
+    txAssetSelect.addEventListener('change', () => {
+      syncSelectedAssetFields();
+    });
+
+    toggleAssetsBtn.addEventListener('click', () => {
+      toggleSection(assetsSectionContent, toggleAssetsBtn);
+    });
+
+    toggleSalesBtn.addEventListener('click', () => {
+      toggleSection(salesSectionContent, toggleSalesBtn);
+    });
+
+    simulationSelect.addEventListener('change', async () => {
+      setSimulationMessage('');
+      activeSimulationId = simulationSelect.value || null;
+      simulationDeleteBtn.disabled = !activeSimulationId;
+      try {
+        if (activeSimulationId) {
+          await loadSimulationDetail(activeSimulationId);
+        } else {
+          simulationEditor.classList.add('hidden');
+          simulationTxBody.innerHTML = '<tr><td colspan="8" class="px-3 py-4 text-center text-gray-500">Select or create a simulation.</td></tr>';
+        }
+        await loadReport(fySelect.value || null, activeSimulationId);
+      } catch (error) {
+        setSimulationMessage(error.message || 'Could not switch simulation');
+      }
+    });
+
+    simulationDeleteBtn.addEventListener('click', async () => {
+      if (!activeSimulationId) {
+        return;
+      }
+      if (!window.confirm('Delete this simulation and all its transactions?')) {
+        return;
+      }
+
+      setSimulationMessage('');
+      try {
+        const res = await fetch(`${SIM_API}/${encodeURIComponent(activeSimulationId)}`, { method: 'DELETE' });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(payload.detail || 'Could not delete simulation');
+        }
+
+        activeSimulationId = null;
+        setSimulationMessage('Simulation deleted', false);
+        await refreshSimulationAndReport();
+      } catch (error) {
+        setSimulationMessage(error.message || 'Could not delete simulation');
+      }
+    });
+
+    simulationTxForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!activeSimulationId) {
+        setSimulationMessage('Select a simulation first');
+        return;
+      }
+
+      setSimulationMessage('');
+      try {
+        if (!txAssetSelect.value) {
+          throw new Error('Select an existing asset');
+        }
+
+        const payload = {
+          name: txNameInput.value.trim(),
+          isin: txIsinInput.value.trim(),
+          transaction_type: document.getElementById('tx-type').value,
+          timestamp: document.getElementById('tx-datetime').value,
+          quantity: document.getElementById('tx-quantity').value,
+          price_per_share: document.getElementById('tx-price').value,
+          commissions: document.getElementById('tx-commissions').value || '0',
+        };
+
+        const res = await fetch(`${SIM_API}/${encodeURIComponent(activeSimulationId)}/transactions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const responsePayload = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(responsePayload.detail || 'Could not add simulation transaction');
+        }
+
+        renderSimulationDetail(responsePayload.simulation);
+        simulationTxForm.reset();
+        txAssetSelect.value = '';
+        syncSelectedAssetFields();
+        setDefaultTxDatetime();
+        await loadReport(fySelect.value || null, activeSimulationId);
+      } catch (error) {
+        setSimulationMessage(error.message || 'Could not add simulation transaction');
+      }
+    });
+
+    simulationTxBody.addEventListener('click', async (event) => {
+      const button = event.target.closest('.simulation-delete-tx');
+      if (!button || !activeSimulationId) {
+        return;
+      }
+
+      const txIndex = button.getAttribute('data-index');
+      if (txIndex === null) {
+        return;
+      }
+
+      setSimulationMessage('');
+      try {
+        const res = await fetch(`${SIM_API}/${encodeURIComponent(activeSimulationId)}/transactions/${txIndex}`, {
+          method: 'DELETE',
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(payload.detail || 'Could not remove transaction');
+        }
+
+        renderSimulationDetail(payload.simulation);
+        await loadReport(fySelect.value || null, activeSimulationId);
+      } catch (error) {
+        setSimulationMessage(error.message || 'Could not remove transaction');
+      }
+    });
+
+    async function bootstrap() {
+      setDefaultTxDatetime();
+      updateViewButtons();
+      try {
+        await loadAssetOptions();
+        await loadSimulations();
+        await loadReport(null, activeSimulationId);
+      } catch (error) {
+        setSimulationMessage(error.message || 'Could not initialize page');
+      }
+    }
+
+    bootstrap();
+  </script>
+</body>
+
+</html>

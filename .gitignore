@@ -1,0 +1,16 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Data
+# Ignore all data exports by default, but include sample broker CSVs
+data/*
+!data/degiro-mock/
+!data/trade-republic-mock/

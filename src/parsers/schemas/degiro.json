@@ -1,0 +1,27 @@
+{
+  "delimiter": ",",
+  "header_aliases": {
+    "date": ["date"],
+    "time": ["time"],
+    "name": ["product"],
+    "isin": ["isin"],
+    "quantity": ["quantity"],
+    "price": ["price"],
+    "value_eur": ["value eur"],
+    "auto_fx_fee": ["autofx fee", "auto fx fee"],
+    "commissions": ["transaction and/or third party fees eur"],
+    "total_amount": ["total eur"],
+    "fx_rate": ["exchange rate"],
+    "order_id": ["order id"]
+  },
+  "required_fields": [
+    "date",
+    "time",
+    "name",
+    "isin",
+    "quantity",
+    "value_eur",
+    "commissions",
+    "total_amount"
+  ]
+}

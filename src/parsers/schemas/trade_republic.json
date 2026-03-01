@@ -1,0 +1,18 @@
+{
+  "delimiter": ";",
+  "header_aliases": {
+    "datetime": ["fecha", "date", "datum", "data"],
+    "type": ["tipo", "type", "typ", "tipo de operacion"],
+    "total_amount": ["valor", "amount", "importe", "value"],
+    "name": ["nota", "product", "name", "descripcion", "description"],
+    "isin": ["isin", "valor isin", "isin code"],
+    "quantity": ["cantidad", "quantity", "shares", "units"],
+    "commissions": ["comisiones", "fees", "commission", "comision"],
+    "taxes": ["impuestos", "taxes", "tax", "retencion"]
+  },
+  "required_fields": ["datetime", "type", "total_amount", "name", "isin", "quantity"],
+  "transaction_type_aliases": {
+    "buy": ["compra", "buy", "kauf", "achat", "acquisto"],
+    "sell": ["venta", "sell", "verkauf", "vente", "vendita"]
+  }
+}
